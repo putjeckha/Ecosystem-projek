@@ -1,0 +1,2633 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Vault</title>
+<meta name="description" content="Secure password vault with AES-256 encryption"/>
+<meta name="theme-color" content="#0a0a0c"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<meta name="apple-mobile-web-app-title" content="Vault"/>
+<link rel="manifest" href="manifest.json"/>
+<link rel="apple-touch-icon" href="icon-192.png"/>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+
+html{
+  overflow-x:hidden;
+  max-width:100vw;
+}
+
+:root{
+  --bg:#0a0a0c;
+  --surface:#111114;
+  --card:#16161a;
+  --card-hover:#1c1c22;
+  --border:#222228;
+  --border-focus:#3a3a48;
+  --text:#f0f0f4;
+  --sub:#888896;
+  --dim:#444452;
+  --accent:#7c6af7;
+  --accent-glow:#7c6af720;
+  --accent-dim:#2a2440;
+  --danger:#f05;
+  --danger-dim:#300010;
+  --warn:#f0a000;
+  --green:#00c896;
+  --yellow:#f0c060;
+  --radius:10px;
+  --mono:'DM Mono',monospace;
+  --sans:'DM Sans',sans-serif;
+}
+
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  max-width:480px;
+  margin:0 auto;
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+svg{display:block;flex-shrink:0}
+
+/* ===== LOCK SCREEN ===== */
+#lockScreen{
+  position:fixed;
+  inset:0;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  padding:40px 28px;
+  background:var(--bg);
+  z-index:100;
+  overflow:hidden;
+}
+
+.lock-mark{
+  width:56px;height:56px;
+  border-radius:16px;
+  background:var(--accent-dim);
+  border:1px solid #3a2f7a;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:28px;
+}
+
+.lock-title{
+  font-size:20px;font-weight:600;
+  letter-spacing:-.4px;
+  margin-bottom:6px;
+  color:var(--text);
+}
+
+.lock-sub{
+  font-size:13px;
+  color:var(--sub);
+  margin-bottom:36px;
+  text-align:center;
+  line-height:1.5;
+}
+
+/* Master password label */
+.pw-field-label{
+  font-size:10px;font-family:var(--mono);font-weight:500;
+  color:var(--dim);letter-spacing:.8px;text-transform:uppercase;
+  margin-bottom:5px;
+  padding-left:2px;
+}
+
+.lock-form{width:100%;max-width:300px}
+
+.lock-field-group{margin-bottom:8px}
+
+.input-wrap{position:relative;margin-bottom:0}
+
+.input-wrap input{
+  width:100%;
+  padding:12px 44px 12px 14px;
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  font-size:14px;
+  font-family:var(--mono);
+  outline:none;
+  transition:border-color .15s;
+  letter-spacing:1px;
+}
+.input-wrap input:focus{border-color:var(--accent)}
+.input-wrap input::placeholder{letter-spacing:0;font-family:var(--sans);color:var(--dim)}
+
+.eye-btn{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);padding:4px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color .15s;
+}
+.eye-btn:hover{color:var(--sub)}
+
+.btn-primary{
+  width:100%;padding:12px;
+  border:none;border-radius:var(--radius);
+  background:var(--accent);
+  color:#fff;
+  font-family:var(--sans);font-size:14px;font-weight:500;
+  cursor:pointer;
+  margin-top:8px;
+  transition:opacity .15s,transform .1s;
+  letter-spacing:.1px;
+}
+.btn-primary:active{transform:scale(.98);opacity:.85}
+.btn-primary:disabled{opacity:.3;cursor:not-allowed}
+
+/* ===== UNLOCK SPINNER ===== */
+.btn-primary.loading{
+  display:flex;align-items:center;justify-content:center;gap:8px;
+  pointer-events:none;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spinner{
+  width:14px;height:14px;
+  border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;
+  border-radius:50%;
+  animation:spin .7s linear infinite;
+  flex-shrink:0;
+}
+
+.lock-msg{
+  margin-top:12px;font-size:12px;
+  text-align:center;min-height:16px;
+  color:var(--sub);
+}
+.lock-msg.error{color:var(--danger)}
+.lock-msg.warn{color:var(--warn)}
+.lock-msg.ok{color:var(--green)}
+
+.attempt-dots{
+  display:flex;gap:5px;
+  justify-content:center;
+  margin-top:10px;
+}
+.dot{
+  width:6px;height:6px;
+  border-radius:50%;
+  background:var(--border);
+  transition:background .2s;
+}
+.dot.used{background:var(--danger)}
+
+.reset-link{
+  margin-top:20px;
+  background:none;border:none;
+  color:var(--dim);
+  font-size:12px;
+  cursor:pointer;
+  font-family:var(--sans);
+  display:flex;align-items:center;gap:5px;
+  transition:color .15s;
+  padding:4px;
+}
+.reset-link:hover{color:var(--danger)}
+
+/* ===== APP ===== */
+#app{display:none;flex-direction:column;height:100vh;overflow:hidden;}
+
+.appbar{
+  display:flex;align-items:center;
+  justify-content:space-between;
+  padding:18px 16px 12px;
+  background:var(--bg);
+  z-index:10;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+
+.app-title{
+  font-size:15px;font-weight:600;
+  letter-spacing:-.2px;
+  display:flex;align-items:center;gap:10px;
+}
+
+.count-badge{
+  font-size:11px;font-family:var(--mono);font-weight:400;
+  color:var(--accent);
+  background:var(--accent-dim);
+  padding:2px 8px;
+  border-radius:20px;
+}
+
+.bar-actions{display:flex;gap:6px;align-items:center}
+
+.icon-btn{
+  width:34px;height:34px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--sub);
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .15s,border-color .15s,color .15s;
+  position:relative;
+}
+.icon-btn:hover{background:var(--surface);color:var(--text);border-color:var(--border-focus)}
+.icon-btn:active{background:var(--card)}
+
+/* Labeled import button */
+.import-btn{
+  height:34px;
+  padding:0 10px;
+  border-radius:8px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--sub);
+  cursor:pointer;
+  display:flex;align-items:center;gap:5px;
+  font-size:11px;font-family:var(--sans);font-weight:500;
+  transition:background .15s,border-color .15s,color .15s;
+  white-space:nowrap;
+}
+.import-btn:hover{background:var(--surface);color:var(--text);border-color:var(--border-focus)}
+
+/* ===== FILTER BAR (categories + favorites) ===== */
+.filter-bar{
+  display:flex;gap:6px;
+  padding:8px 16px;
+  overflow-x:auto;
+  scrollbar-width:none;
+  background:var(--bg);
+  z-index:9;
+  border-bottom:1px solid var(--border);
+  flex-shrink:0;
+}
+.filter-bar::-webkit-scrollbar{display:none}
+
+.filter-chip{
+  flex-shrink:0;
+  padding:5px 12px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--sub);
+  font-size:11px;font-family:var(--sans);font-weight:500;
+  cursor:pointer;
+  transition:all .15s;
+  display:flex;align-items:center;gap:4px;
+  white-space:nowrap;
+}
+.filter-chip:hover{border-color:var(--border-focus);color:var(--text)}
+.filter-chip.active{border-color:var(--accent);background:var(--accent-dim);color:var(--accent)}
+.filter-chip.fav-chip.active{border-color:var(--yellow);background:#2a200a;color:var(--yellow)}
+
+.search-wrap{
+  padding:10px 16px;
+  background:var(--bg);
+  z-index:8;
+  flex-shrink:0;
+}
+
+.search-inner{position:relative}
+
+.search-box{
+  width:100%;
+  padding:10px 36px 10px 38px;
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  background:var(--surface);
+  color:var(--text);
+  font-size:13px;
+  font-family:var(--sans);
+  outline:none;
+  transition:border-color .15s;
+}
+.search-box:focus{border-color:var(--border-focus)}
+.search-box::placeholder{color:var(--dim)}
+
+.search-icon{
+  position:absolute;left:11px;top:50%;transform:translateY(-50%);
+  color:var(--dim);pointer-events:none;
+}
+.search-clear{
+  position:absolute;right:11px;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);padding:2px;
+  display:none;
+}
+.search-clear.visible{display:flex;align-items:center;justify-content:center}
+.search-clear:hover{color:var(--sub)}
+
+#list{padding:0 16px 88px;overflow-y:auto;flex:1;}
+
+.section-label{
+  font-size:10px;font-family:var(--mono);
+  color:var(--dim);letter-spacing:.8px;text-transform:uppercase;
+  padding:10px 0 6px;
+}
+
+.item-card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  padding:14px;
+  margin-bottom:6px;
+  cursor:pointer;
+  transition:border-color .15s,background .15s;
+}
+.item-card:hover{border-color:var(--border-focus)}
+.item-card.expanded{border-color:var(--border-focus);background:var(--card-hover)}
+.item-card.pinned{border-color:#2a200a}
+
+.item-header{display:flex;align-items:center;gap:10px}
+
+.item-avatar{
+  width:36px;height:36px;
+  border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:600;
+  font-family:var(--mono);
+  flex-shrink:0;
+  position:relative;
+}
+
+.fav-dot{
+  position:absolute;top:-3px;right:-3px;
+  width:8px;height:8px;
+  background:var(--yellow);
+  border-radius:50%;
+  border:1.5px solid var(--card);
+}
+
+.item-info{flex:1;min-width:0}
+
+.item-title{
+  font-size:14px;font-weight:500;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  display:flex;align-items:center;gap:6px;
+}
+
+.cat-badge{
+  font-size:9px;font-family:var(--mono);font-weight:500;
+  padding:1px 6px;
+  border-radius:10px;
+  flex-shrink:0;
+  opacity:.8;
+}
+
+.item-user{
+  font-size:11px;color:var(--sub);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  font-family:var(--mono);
+  margin-top:2px;
+}
+
+.item-chevron{
+  color:var(--dim);
+  transition:transform .2s;
+}
+.item-chevron.open{transform:rotate(180deg)}
+
+/* Expanded details */
+.item-details{
+  margin-top:10px;
+  padding-top:10px;
+  border-top:1px solid var(--border);
+}
+
+.detail-row{
+  display:flex;align-items:center;
+  margin-bottom:6px;gap:8px;
+}
+.detail-label{
+  font-size:9px;font-family:var(--mono);font-weight:500;
+  color:var(--dim);letter-spacing:.6px;text-transform:uppercase;
+  min-width:48px;
+  flex-shrink:0;
+}
+.detail-value{
+  font-size:12px;font-family:var(--mono);
+  color:var(--sub);
+  flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.detail-value.revealed{color:var(--text)}
+
+.detail-eye{
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);padding:3px;
+  display:flex;align-items:center;
+  transition:color .15s;flex-shrink:0;
+}
+.detail-eye:hover{color:var(--sub)}
+
+/* Password strength */
+.strength-bar{
+  display:flex;gap:3px;
+  margin-top:2px;
+}
+.strength-seg{
+  height:3px;border-radius:2px;
+  flex:1;
+  background:var(--border);
+  transition:background .3s;
+}
+.strength-seg.s1{background:var(--danger)}
+.strength-seg.s2{background:var(--warn)}
+.strength-seg.s3{background:#7ec850}
+.strength-seg.s4{background:var(--green)}
+
+.strength-label{
+  font-size:10px;font-family:var(--mono);
+  margin-top:3px;
+}
+.strength-label.s1{color:var(--danger)}
+.strength-label.s2{color:var(--warn)}
+.strength-label.s3{color:#7ec850}
+.strength-label.s4{color:var(--green)}
+
+.item-actions{
+  display:flex;gap:6px;
+  margin-top:12px;
+  padding-top:12px;
+  border-top:1px solid var(--border);
+  flex-wrap:wrap;
+}
+
+.act-btn{
+  flex:1;min-width:0;
+  padding:8px 6px;
+  border-radius:7px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--sub);
+  font-size:11px;font-family:var(--sans);font-weight:500;
+  cursor:pointer;
+  transition:all .15s;
+  display:flex;align-items:center;justify-content:center;gap:5px;
+  white-space:nowrap;
+}
+.act-btn:hover{color:var(--text);border-color:var(--border-focus);background:var(--surface)}
+.act-btn.copy:hover{color:var(--accent);border-color:var(--accent)}
+.act-btn.del:hover{color:var(--danger);border-color:var(--danger);background:var(--danger-dim)}
+.act-btn.fav:hover{color:var(--yellow);border-color:var(--yellow);background:#1a1600}
+.act-btn.fav.active{color:var(--yellow);border-color:#3a2f00;background:#1a1600}
+
+.empty-state{
+  text-align:center;
+  padding:64px 24px;
+  color:var(--dim);
+}
+.empty-icon{
+  width:48px;height:48px;
+  margin:0 auto 16px;
+  opacity:.4;
+}
+.empty-state p{font-size:13px;line-height:1.6;color:var(--sub)}
+
+/* ===== FAB ===== */
+.fab{
+  position:fixed;
+  bottom:24px;right:calc(50% - 224px);
+  width:52px;height:52px;
+  border-radius:14px;
+  border:none;
+  background:var(--accent);
+  color:#fff;
+  font-size:22px;
+  cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 24px var(--accent-glow);
+  transition:transform .15s,opacity .15s;
+  z-index:20;
+}
+.fab:active{transform:scale(.93)}
+
+@media(max-width:480px){
+  .fab{right:20px}
+}
+
+/* ===== OVERLAY & SHEET ===== */
+.overlay{
+  position:fixed;inset:0;
+  background:#00000070;
+  backdrop-filter:blur(6px);
+  -webkit-backdrop-filter:blur(6px);
+  z-index:30;
+  display:none;
+}
+.overlay.show{display:block;animation:fadeIn .18s ease}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+.sheet{
+  position:fixed;
+  bottom:0;left:50%;transform:translateX(-50%);
+  width:100%;max-width:480px;
+  background:var(--surface);
+  border-radius:18px 18px 0 0;
+  border-top:1px solid var(--border);
+  padding:16px 20px 32px;
+  z-index:31;
+  max-height:92vh;
+  overflow-y:auto;
+  display:none;
+}
+.sheet.show{display:block;animation:slideUp .22s cubic-bezier(.3,1,.4,1)}
+@keyframes slideUp{
+  from{transform:translateX(-50%) translateY(100%)}
+  to{transform:translateX(-50%) translateY(0)}
+}
+
+.sheet-handle{
+  width:32px;height:3px;
+  border-radius:2px;
+  background:var(--border-focus);
+  margin:0 auto 18px;
+}
+
+.sheet-title{
+  font-size:15px;font-weight:600;
+  letter-spacing:-.2px;
+  margin-bottom:18px;
+  display:flex;align-items:center;gap:8px;
+}
+
+.field{margin-bottom:12px}
+
+.field-label{
+  font-size:10px;font-family:var(--mono);font-weight:500;
+  color:var(--dim);
+  letter-spacing:.8px;
+  text-transform:uppercase;
+  margin-bottom:5px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+
+.field input,.field textarea,.field select{
+  width:100%;
+  padding:11px 13px;
+  border-radius:var(--radius);
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+  font-size:13px;
+  font-family:var(--sans);
+  outline:none;
+  transition:border-color .15s;
+  resize:none;
+  appearance:none;
+  -webkit-appearance:none;
+}
+.field input:focus,.field textarea:focus,.field select:focus{border-color:var(--accent)}
+.field input::placeholder,.field textarea::placeholder{color:var(--dim)}
+.field select option{background:var(--card)}
+
+.field-pw{position:relative}
+.field-pw input{font-family:var(--mono);letter-spacing:1px;padding-right:72px}
+.field-pw input::placeholder{font-family:var(--sans);letter-spacing:0}
+
+.pw-eye,.pw-gen{
+  position:absolute;top:50%;transform:translateY(-50%);
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);padding:4px;
+  display:flex;align-items:center;justify-content:center;
+  transition:color .15s;
+}
+.pw-eye:hover,.pw-gen:hover{color:var(--sub)}
+.pw-eye{right:10px}
+.pw-gen{right:36px;color:var(--accent);opacity:.8}
+.pw-gen:hover{opacity:1}
+
+/* Password strength in form */
+.form-strength{margin-top:4px}
+.form-strength-bar{display:flex;gap:3px}
+.form-strength-seg{
+  height:3px;border-radius:2px;flex:1;
+  background:var(--border);
+  transition:background .3s;
+}
+.form-strength-label{
+  font-size:10px;font-family:var(--mono);
+  color:var(--dim);margin-top:3px;
+}
+
+.sheet-actions{display:flex;gap:8px;margin-top:16px}
+
+.btn-save{
+  flex:1;padding:12px;
+  border:none;border-radius:var(--radius);
+  background:var(--accent);
+  color:#fff;font-weight:500;font-size:13px;
+  font-family:var(--sans);
+  cursor:pointer;
+  transition:opacity .15s;
+}
+.btn-save:active{opacity:.8}
+
+.btn-cancel{
+  padding:12px 18px;
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:transparent;
+  color:var(--sub);font-size:13px;
+  font-family:var(--sans);
+  cursor:pointer;
+  transition:border-color .15s,color .15s;
+}
+.btn-cancel:hover{border-color:var(--border-focus);color:var(--text)}
+
+/* ===== CHANGE PW SHEET ===== */
+#cpMsg{
+  font-size:12px;min-height:16px;
+  margin-bottom:8px;text-align:center;
+  color:var(--sub);
+}
+
+/* ===== IMPORT CONFIRM MODAL ===== */
+.modal-overlay{
+  position:fixed;inset:0;
+  background:#00000080;
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  z-index:50;
+  display:none;
+  align-items:center;justify-content:center;
+  padding:24px;
+}
+.modal-overlay.show{display:flex;animation:fadeIn .15s ease}
+
+.modal-box{
+  background:var(--surface);
+  border:1px solid var(--border-focus);
+  border-radius:14px;
+  padding:24px;
+  width:100%;max-width:320px;
+}
+
+.modal-title{
+  font-size:15px;font-weight:600;
+  margin-bottom:8px;
+  display:flex;align-items:center;gap:8px;
+}
+.modal-title svg{color:var(--warn)}
+
+.modal-desc{
+  font-size:13px;color:var(--sub);
+  line-height:1.6;
+  margin-bottom:20px;
+}
+.modal-desc strong{color:var(--text)}
+
+.modal-actions{display:flex;flex-direction:column;gap:8px}
+
+.btn-merge{
+  width:100%;padding:11px;
+  border-radius:var(--radius);
+  border:1px solid var(--border-focus);
+  background:var(--card);
+  color:var(--text);
+  font-size:13px;font-family:var(--sans);font-weight:500;
+  cursor:pointer;
+  transition:all .15s;
+  text-align:left;
+  display:flex;align-items:center;gap:10px;
+}
+.btn-merge:hover{border-color:var(--accent);background:var(--accent-dim)}
+
+.btn-replace{
+  width:100%;padding:11px;
+  border-radius:var(--radius);
+  border:1px solid #300010;
+  background:var(--danger-dim);
+  color:#ff6688;
+  font-size:13px;font-family:var(--sans);font-weight:500;
+  cursor:pointer;
+  transition:all .15s;
+  text-align:left;
+  display:flex;align-items:center;gap:10px;
+}
+.btn-replace:hover{border-color:var(--danger);background:#400018}
+
+.btn-modal-cancel{
+  width:100%;padding:10px;
+  border-radius:var(--radius);
+  border:none;background:transparent;
+  color:var(--dim);font-size:12px;
+  font-family:var(--sans);cursor:pointer;
+  transition:color .15s;
+}
+.btn-modal-cancel:hover{color:var(--sub)}
+
+.modal-icon-wrap{
+  width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.modal-icon-merge{background:#1a2a1a;color:var(--green)}
+.modal-icon-replace{background:var(--danger-dim);color:var(--danger)}
+
+.merge-note{
+  font-size:10px;color:var(--dim);
+  font-family:var(--mono);
+  margin-top:2px;
+}
+
+/* ===== LOCK SECRET ===== */
+.secret-lock-bar{
+  display:flex;align-items:center;justify-content:space-between;
+  background:var(--accent-dim);
+  border:1px solid var(--accent);
+  border-radius:8px;
+  padding:8px 12px;
+  margin-top:10px;
+  gap:8px;
+}
+.secret-lock-info{
+  display:flex;align-items:center;gap:7px;
+  font-size:11px;font-family:var(--mono);
+  color:var(--accent);
+  flex:1;min-width:0;
+}
+.secret-lock-timer{
+  font-weight:600;font-size:12px;
+  color:var(--accent);
+  flex-shrink:0;
+  min-width:44px;
+  text-align:right;
+}
+.secret-lock-cancel{
+  background:none;border:none;cursor:pointer;
+  color:var(--dim);padding:2px 4px;
+  font-size:10px;font-family:var(--mono);
+  transition:color .15s;
+  flex-shrink:0;
+}
+.secret-lock-cancel:hover{color:var(--danger)}
+
+/* Lock secret button in item actions */
+.act-btn.secret-lock-active{
+  color:var(--accent);
+  border-color:var(--accent);
+  background:var(--accent-dim);
+}
+
+/* Lock secret modal */
+#secretLockModal .modal-box{max-width:320px}
+.dur-custom-grid{
+  display:grid;
+  grid-template-columns:repeat(4,1fr);
+  gap:6px;
+  margin-bottom:12px;
+}
+.dur-unit{display:flex;flex-direction:column;align-items:center;gap:3px}
+.dur-unit-label{
+  font-size:9px;font-family:var(--mono);font-weight:500;
+  color:var(--dim);letter-spacing:.5px;text-transform:uppercase;
+}
+.dur-unit-input{
+  width:100%;
+  padding:7px 4px;
+  border-radius:7px;
+  border:1px solid var(--border);
+  background:var(--card);
+  color:var(--text);
+  font-size:13px;font-family:var(--mono);font-weight:600;
+  text-align:center;
+  outline:none;
+  transition:border-color .15s;
+  -moz-appearance:textfield;
+}
+.dur-unit-input::-webkit-outer-spin-button,
+.dur-unit-input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.dur-unit-input:focus{border-color:var(--accent)}
+.dur-presets{
+  display:flex;gap:5px;flex-wrap:wrap;
+  margin-bottom:14px;
+}
+.dur-preset-btn{
+  padding:4px 10px;
+  border-radius:20px;
+  border:1px solid var(--border);
+  background:transparent;
+  color:var(--dim);
+  font-size:10px;font-family:var(--mono);
+  cursor:pointer;
+  transition:all .15s;
+  white-space:nowrap;
+}
+.dur-preset-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
+.dur-preview{
+  font-size:11px;font-family:var(--mono);
+  color:var(--accent);
+  text-align:center;
+  min-height:16px;
+  margin-bottom:12px;
+}
+.toast{
+  position:fixed;
+  bottom:88px;left:50%;transform:translateX(-50%) translateY(6px);
+  background:var(--card);
+  color:var(--text);
+  border:1px solid var(--border-focus);
+  padding:9px 16px;
+  border-radius:8px;
+  font-size:12px;font-family:var(--mono);
+  white-space:nowrap;
+  opacity:0;
+  transition:opacity .18s,transform .18s;
+  z-index:100;
+  pointer-events:none;
+}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{color:var(--danger);border-color:#300}
+.toast.ok{color:var(--green)}
+.toast.warn{color:var(--warn)}
+
+/* ===== AVATAR COLORS ===== */
+.c0{background:#1a1a2e;color:#6c63ff}
+.c1{background:#1e1228;color:#c084fc}
+.c2{background:#1e1a10;color:#fbbf24}
+.c3{background:#0e1e1a;color:#34d399}
+.c4{background:#1e1014;color:#fb7185}
+.c5{background:#111e10;color:#86efac}
+.c6{background:#1a1214;color:#f87171}
+.c7{background:#101e20;color:#67e8f9}
+
+/* Category badge colors */
+.cat-social{background:#1e1228;color:#c084fc}
+.cat-finance{background:#0e1e1a;color:#34d399}
+.cat-email{background:#1e1a10;color:#fbbf24}
+.cat-work{background:#101e20;color:#67e8f9}
+.cat-other{background:#1a1a2a;color:#888896}
+</style>
+</head>
+<body>
+
+<!-- LOCK SCREEN -->
+<div id="lockScreen">
+  <div class="lock-mark">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#7c6af7" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2"/>
+      <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </svg>
+  </div>
+  <div class="lock-title">Secure Vault</div>
+  <div class="lock-sub" id="lockSub">Masukkan master password untuk melanjutkan</div>
+  <div class="lock-form">
+
+    <div class="lock-field-group">
+      <div class="pw-field-label">Master Password Vault</div>
+      <div class="input-wrap">
+        <input type="password" id="masterPass" placeholder="Password untuk buka vault" autocomplete="current-password" oninput="updateLockStrength(this.value)"/>
+        <button class="eye-btn" onclick="toggleEye('masterPass',this)" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+      <!-- Strength meter: only shown during first-time setup -->
+      <div id="lockStrengthWrap" style="display:none;margin-top:6px">
+        <div style="display:flex;gap:3px;margin-bottom:3px">
+          <div class="strength-seg" id="ls0"></div>
+          <div class="strength-seg" id="ls1"></div>
+          <div class="strength-seg" id="ls2"></div>
+          <div class="strength-seg" id="ls3"></div>
+        </div>
+        <div style="font-size:10px;font-family:var(--mono)" id="lockStrengthLabel"></div>
+      </div>
+    </div>
+
+    <div class="lock-field-group" id="confirmWrap" style="display:none">
+      <div class="pw-field-label">Konfirmasi Master Password</div>
+      <div class="input-wrap">
+        <input type="password" id="masterConfirm" placeholder="Ulangi master password" autocomplete="new-password"/>
+        <button class="eye-btn" onclick="toggleEye('masterConfirm',this)" type="button">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="unlockBtn" onclick="unlock()">Buka Vault</button>
+    <div class="attempt-dots" id="dots">
+      <div class="dot" id="d0"></div>
+      <div class="dot" id="d1"></div>
+      <div class="dot" id="d2"></div>
+      <div class="dot" id="d3"></div>
+      <div class="dot" id="d4"></div>
+    </div>
+    <div class="lock-msg" id="lockMsg"></div>
+    <button class="reset-link" id="resetLink" onclick="showResetConfirm()" style="display:none">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      Reset &amp; buat vault baru
+    </button>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="app">
+  <div class="appbar">
+    <div class="app-title">
+      Vault
+      <span class="count-badge" id="countBadge">0</span>
+    </div>
+    <div class="bar-actions">
+      <!-- Import — labeled -->
+      <button class="import-btn" onclick="importTrigger()" title="Import backup">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        Import
+      </button>
+      <!-- Export -->
+      <button class="icon-btn" onclick="exportData()" title="Backup / Export">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      <!-- Change password -->
+      <button class="icon-btn" onclick="openChangePw()" title="Ganti Master Password Vault">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></svg>
+      </button>
+      <!-- Lock -->
+      <button class="icon-btn" onclick="lockVault()" title="Kunci Vault">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Filter chips -->
+  <div class="filter-bar">
+    <button class="filter-chip fav-chip" id="chip-fav" onclick="setFilter('fav')">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Favorit
+    </button>
+    <button class="filter-chip active" id="chip-all" onclick="setFilter('all')">Semua</button>
+    <button class="filter-chip" id="chip-social" onclick="setFilter('social')">Sosial</button>
+    <button class="filter-chip" id="chip-finance" onclick="setFilter('finance')">Keuangan</button>
+    <button class="filter-chip" id="chip-email" onclick="setFilter('email')">Email</button>
+    <button class="filter-chip" id="chip-work" onclick="setFilter('work')">Kerja</button>
+    <button class="filter-chip" id="chip-other" onclick="setFilter('other')">Lainnya</button>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-inner">
+      <span class="search-icon">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
+      <input class="search-box" id="search" placeholder="Cari nama, username, atau catatan…" oninput="onSearch()"/>
+      <button class="search-clear" id="searchClear" onclick="clearSearch()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+  </div>
+
+  <div id="list"></div>
+</div>
+
+<!-- FAB -->
+<button class="fab" id="fab" onclick="openModal()" style="display:none" title="Tambah">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+</button>
+
+<!-- OVERLAY (add/edit) -->
+<div class="overlay" id="overlay" onclick="closeModal()"></div>
+
+<!-- ADD/EDIT SHEET -->
+<div class="sheet" id="sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title" id="sheetTitle">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    Tambah Secret
+  </div>
+  <div class="field">
+    <div class="field-label">Nama / Layanan</div>
+    <input id="fTitle" placeholder="Gmail, Instagram, dll."/>
+  </div>
+  <div class="field">
+    <div class="field-label">Kategori</div>
+    <select id="fCategory">
+      <option value="other">Lainnya</option>
+      <option value="social">Sosial Media</option>
+      <option value="finance">Keuangan / Bank</option>
+      <option value="email">Email</option>
+      <option value="work">Kerja / Bisnis</option>
+    </select>
+  </div>
+  <div class="field">
+    <div class="field-label">
+      <span>Username / Email</span>
+    </div>
+    <input id="fUser" placeholder="user@email.com" autocomplete="off"/>
+  </div>
+  <div class="field">
+    <div class="field-label">
+      <span>Password Akun</span>
+      <span id="strengthLabel" class="form-strength-label"></span>
+    </div>
+    <div class="field-pw">
+      <input type="password" id="fPass" placeholder="Password akun ini" autocomplete="new-password" oninput="updateStrength(this.value)"/>
+      <button class="pw-gen" onclick="genPass()" title="Generate password">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </button>
+      <button class="pw-eye" onclick="toggleEye('fPass',this)" type="button">
+        <svg id="eyeIcon-fPass" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div class="form-strength" id="strengthBar">
+      <div class="form-strength-bar">
+        <div class="form-strength-seg" id="ss0"></div>
+        <div class="form-strength-seg" id="ss1"></div>
+        <div class="form-strength-seg" id="ss2"></div>
+        <div class="form-strength-seg" id="ss3"></div>
+      </div>
+    </div>
+  </div>
+  <div class="field">
+    <div class="field-label">Catatan (opsional)</div>
+    <textarea id="fNotes" rows="3" placeholder="Info tambahan, PIN, security question…"></textarea>
+  </div>
+  <div class="sheet-actions">
+    <button class="btn-save" onclick="saveItem()">Simpan</button>
+    <button class="btn-cancel" onclick="closeModal()">Batal</button>
+  </div>
+</div>
+
+<!-- OVERLAY (change pw) -->
+<div class="overlay" id="cpOverlay" onclick="closeChangePw()"></div>
+
+<!-- CHANGE PASSWORD SHEET -->
+<div class="sheet" id="cpSheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-title">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 20v-1a6 6 0 0 1 12 0v1"/></svg>
+    Ganti Master Password Vault
+  </div>
+  <div style="font-size:11px;color:var(--sub);background:var(--accent-dim);border:1px solid #3a2f7a;border-radius:8px;padding:8px 12px;margin-bottom:14px;line-height:1.5;">
+    ⚠️ Ini adalah <strong style="color:var(--text)">master password vault</strong> — bukan password akun individual.
+  </div>
+  <div class="field">
+    <div class="field-label">Master Password Lama</div>
+    <div class="field-pw">
+      <input type="password" id="cpOld" placeholder="Master password vault saat ini" autocomplete="current-password"/>
+      <button class="pw-eye" onclick="toggleEye('cpOld',this)" type="button">
+        <svg id="eyeIcon-cpOld" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="field">
+    <div class="field-label">Master Password Baru</div>
+    <div class="field-pw">
+      <input type="password" id="cpNew" placeholder="Master password baru" autocomplete="new-password"/>
+      <button class="pw-eye" onclick="toggleEye('cpNew',this)" type="button">
+        <svg id="eyeIcon-cpNew" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="field">
+    <div class="field-label">Konfirmasi Master Password Baru</div>
+    <div class="field-pw">
+      <input type="password" id="cpConfirm" placeholder="Ulangi master password baru" autocomplete="new-password"/>
+      <button class="pw-eye" onclick="toggleEye('cpConfirm',this)" type="button">
+        <svg id="eyeIcon-cpConfirm" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+  </div>
+  <div id="cpMsg"></div>
+  <div class="sheet-actions">
+    <button class="btn-save" onclick="doChangePw()">Simpan Password Baru</button>
+    <button class="btn-cancel" onclick="closeChangePw()">Batal</button>
+  </div>
+</div>
+
+<!-- IMPORT CONFIRM MODAL -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      Import Backup
+    </div>
+    <div class="modal-desc" id="importDesc">
+      Ditemukan <strong id="importCount">0</strong> item dalam file backup ini. Pilih metode import:
+    </div>
+    <div class="modal-actions">
+      <button class="btn-merge" onclick="doImport('merge')">
+        <div class="modal-icon-wrap modal-icon-merge">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="17" y1="1" x2="17" y2="11"/><path d="M9 7L3 12l6 5"/><path d="M3 12h14a4 4 0 0 0 0-8h-1"/></svg>
+        </div>
+        <div>
+          <div>Gabungkan (Merge)</div>
+          <div class="merge-note">Tambahkan ke data yang ada</div>
+        </div>
+      </button>
+      <button class="btn-replace" onclick="doImport('replace')">
+        <div class="modal-icon-wrap modal-icon-replace">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+        </div>
+        <div>
+          <div>Ganti Semua</div>
+          <div class="merge-note" style="color:#ff4466">Data lama akan dihapus</div>
+        </div>
+      </button>
+      <button class="btn-modal-cancel" onclick="cancelImport()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM MODAL -->
+<div class="modal-overlay" id="deleteModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--danger)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      Hapus Item
+    </div>
+    <div class="modal-desc">
+      Yakin ingin menghapus <strong id="deleteConfirmName"></strong>? Tindakan ini tidak dapat dibatalkan.
+    </div>
+    <div class="modal-actions">
+      <button class="btn-replace" onclick="confirmDelete()" style="justify-content:center">
+        Ya, Hapus
+      </button>
+      <button class="btn-modal-cancel" onclick="cancelDelete()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<!-- LOCK SECRET MODAL -->
+<div class="modal-overlay" id="secretLockModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Lock Secret
+    </div>
+    <div class="modal-desc">
+      Sembunyikan <strong id="secretLockItemName"></strong> sampai timer habis.
+    </div>
+    <!-- Preset cepat -->
+    <div class="dur-presets">
+      <button class="dur-preset-btn" onclick="applyPreset(0,0,0,0,0,5,0)">5 mnt</button>
+      <button class="dur-preset-btn" onclick="applyPreset(0,0,0,0,0,30,0)">30 mnt</button>
+      <button class="dur-preset-btn" onclick="applyPreset(0,0,0,0,1,0,0)">1 jam</button>
+      <button class="dur-preset-btn" onclick="applyPreset(0,0,0,0,6,0,0)">6 jam</button>
+      <button class="dur-preset-btn" onclick="applyPreset(0,0,0,1,0,0,0)">1 hari</button>
+      <button class="dur-preset-btn" onclick="applyPreset(0,0,1,0,0,0,0)">1 minggu</button>
+    </div>
+    <!-- Input custom -->
+    <div class="dur-custom-grid">
+      <div class="dur-unit">
+        <div class="dur-unit-label">Tahun</div>
+        <input class="dur-unit-input" type="number" id="durY" min="0" max="99" value="0" oninput="onDurInput()"/>
+      </div>
+      <div class="dur-unit">
+        <div class="dur-unit-label">Bulan</div>
+        <input class="dur-unit-input" type="number" id="durMo" min="0" max="11" value="0" oninput="onDurInput()"/>
+      </div>
+      <div class="dur-unit">
+        <div class="dur-unit-label">Minggu</div>
+        <input class="dur-unit-input" type="number" id="durW" min="0" max="52" value="0" oninput="onDurInput()"/>
+      </div>
+      <div class="dur-unit">
+        <div class="dur-unit-label">Hari</div>
+        <input class="dur-unit-input" type="number" id="durD" min="0" max="365" value="0" oninput="onDurInput()"/>
+      </div>
+      <div class="dur-unit">
+        <div class="dur-unit-label">Jam</div>
+        <input class="dur-unit-input" type="number" id="durH" min="0" max="23" value="0" oninput="onDurInput()"/>
+      </div>
+      <div class="dur-unit">
+        <div class="dur-unit-label">Menit</div>
+        <input class="dur-unit-input" type="number" id="durMin" min="0" max="59" value="0" oninput="onDurInput()"/>
+      </div>
+      <div class="dur-unit">
+        <div class="dur-unit-label">Detik</div>
+        <input class="dur-unit-input" type="number" id="durS" min="0" max="59" value="0" oninput="onDurInput()"/>
+      </div>
+    </div>
+    <div class="dur-preview" id="durPreview">Pilih durasi</div>
+    <div class="modal-actions">
+      <button class="btn-merge" id="secretLockConfirmBtn" onclick="confirmSecretLock()" style="justify-content:center;opacity:.4;pointer-events:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Kunci Sekarang
+      </button>
+      <button class="btn-modal-cancel" onclick="closeSecretLockModal()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<!-- IMPORT PASSWORD MODAL (untuk backup dari vault berbeda) -->
+<div class="modal-overlay" id="importPwModal">
+  <div class="modal-box">
+    <div class="modal-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Verifikasi Backup
+    </div>
+    <div class="modal-desc">
+      Backup ini berasal dari vault/device berbeda. Masukkan <strong>master password vault asal</strong> untuk lanjutkan import.
+    </div>
+    <div style="position:relative;margin-bottom:10px">
+      <input type="password" id="importPwInput" placeholder="Master password vault asal" autocomplete="off"
+        style="width:100%;padding:11px 44px 11px 13px;border-radius:var(--radius);border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-family:var(--mono);outline:none;letter-spacing:1px;"
+        oninput="document.getElementById('importPwInput').style.borderColor='var(--border)'"
+        onkeydown="if(event.key==='Enter')confirmImportPw()"/>
+      <button onclick="toggleEye('importPwInput',this)" type="button" style="position:absolute;right:12px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;color:var(--dim);padding:4px;display:flex;align-items:center;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+      </button>
+    </div>
+    <div id="importPwMsg" style="font-size:11px;min-height:14px;margin-bottom:10px;font-family:var(--mono);color:var(--danger);"></div>
+    <div class="modal-actions">
+      <button class="btn-merge" onclick="confirmImportPw()" style="justify-content:center">
+        Verifikasi & Lanjutkan
+      </button>
+      <button class="btn-modal-cancel" onclick="cancelImportPw()">Batal</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".vault" style="display:none" onchange="importData(event)"/>
+<div id="toast" class="toast"></div>
+
+<script>
+// ===== SVG ICON STRINGS =====
+const SVG = {
+  eyeOpen: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`,
+  eyeOff: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19M1 1l22 22"/></svg>`,
+  chevronDown: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>`,
+  copy: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
+  edit: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  trash: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`,
+  lockEmpty: `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>`,
+  searchEmpty: `<svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity=".35"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
+  editTitle: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`,
+  star: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+  starOutline: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`,
+};
+
+// ===== CONFIG =====
+const DB_NAME = 'VaultDB';
+const DB_VER = 2;
+const STORE = 'items';
+const MAX_ATTEMPTS = 5;
+const LOCKOUT_MS = 30000;
+const IDLE_LOCK_MS = 5 * 60 * 1000; // 5 menit idle → auto-lock
+
+const CATEGORIES = {
+  social: {label:'Sosial', cls:'cat-social'},
+  finance: {label:'Keuangan', cls:'cat-finance'},
+  email: {label:'Email', cls:'cat-email'},
+  work: {label:'Kerja', cls:'cat-work'},
+  other: {label:'Lainnya', cls:'cat-other'},
+};
+
+// ===== STATE =====
+let db = null;
+let _key = null;
+let _items = [];
+let editId = null;
+let attempts = 0;
+let lockedUntil = 0;
+let _expanded = new Set();
+let _revealed = new Set(); // item ids with password shown
+let _filter = 'all';
+let _importPending = null; // {data, file}
+let _importSessionKey = null; // key disimpan sebelum file picker dibuka
+let _idleTimer = null;
+// ===== LOCK SECRET STATE =====
+// Map: itemId → { unlocksAt: timestamp (ms), timerId }
+let _secretLocks = new Map();
+let _secretTimers = new Map();
+
+// ===== INDEXEDDB =====
+function openDB(){
+  return new Promise((res,rej)=>{
+    const req = indexedDB.open(DB_NAME, DB_VER);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if(!d.objectStoreNames.contains(STORE)){
+        d.createObjectStore(STORE, {keyPath:'id', autoIncrement:true});
+      }
+      // v2: no schema change, just version bump for category/fav fields
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror = () => rej(req.error);
+  });
+}
+
+function dbAll(){
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(STORE,'readonly');
+    const req = tx.objectStore(STORE).getAll();
+    req.onsuccess = ()=>res(req.result);
+    req.onerror = ()=>rej(req.error);
+  });
+}
+
+function dbPut(obj){
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(STORE,'readwrite');
+    const req = tx.objectStore(STORE).put(obj);
+    req.onsuccess = ()=>res(req.result);
+    req.onerror = ()=>rej(req.error);
+  });
+}
+
+function dbDelete(id){
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(STORE,'readwrite');
+    const req = tx.objectStore(STORE).delete(id);
+    req.onsuccess = ()=>res();
+    req.onerror = ()=>rej(req.error);
+  });
+}
+
+function dbClear(){
+  return new Promise((res,rej)=>{
+    const tx = db.transaction(STORE,'readwrite');
+    const req = tx.objectStore(STORE).clear();
+    req.onsuccess = ()=>res();
+    req.onerror = ()=>rej(req.error);
+  });
+}
+
+// ===== BASE64 HELPERS =====
+function bufToB64(buf){
+  let bin='';
+  const bytes = new Uint8Array(buf);
+  for(let i=0;i<bytes.length;i++) bin+=String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+function b64ToBuf(b64){
+  const bin=atob(b64);
+  const buf=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) buf[i]=bin.charCodeAt(i);
+  return buf;
+}
+
+// ===== CRYPTO =====
+async function deriveKey(password, salt){
+  const enc = new TextEncoder();
+  const km = await crypto.subtle.importKey('raw', enc.encode(password), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey(
+    {name:'PBKDF2', salt, iterations:600000, hash:'SHA-256'},
+    km, {name:'AES-GCM', length:256}, false, ['encrypt','decrypt']
+  );
+}
+
+async function encrypt(text){
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const enc = new TextEncoder();
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM', iv}, _key, enc.encode(text));
+  const buf = new Uint8Array(iv.length + ct.byteLength);
+  buf.set(iv, 0); buf.set(new Uint8Array(ct), iv.length);
+  return bufToB64(buf);
+}
+
+async function decrypt(b64){
+  try {
+    const buf = b64ToBuf(b64);
+    const iv = buf.slice(0,12); const ct = buf.slice(12);
+    const pt = await crypto.subtle.decrypt({name:'AES-GCM', iv}, _key, ct);
+    return new TextDecoder().decode(pt);
+  } catch(e) {
+    throw new Error('Gagal dekripsi — password mungkin salah atau data rusak');
+  }
+}
+
+// ===== SALT & VERIFIER =====
+function getSalt(){
+  let s = localStorage.getItem('vault_salt');
+  if(!s){
+    const arr = crypto.getRandomValues(new Uint8Array(32)); // 256-bit salt
+    s = bufToB64(arr);
+    localStorage.setItem('vault_salt', s);
+  }
+  return b64ToBuf(s);
+}
+
+async function setVerifier(password, salt){
+  const k = await deriveKey(password, salt);
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const ct = await crypto.subtle.encrypt({name:'AES-GCM',iv}, k, new TextEncoder().encode('VAULT_OK'));
+  const buf = new Uint8Array(iv.length + ct.byteLength);
+  buf.set(iv); buf.set(new Uint8Array(ct), iv.length);
+  localStorage.setItem('vault_ver', bufToB64(buf));
+}
+
+async function checkVerifier(password, salt){
+  const v = localStorage.getItem('vault_ver');
+  if(!v) return false;
+  try{
+    const k = await deriveKey(password, salt);
+    const buf = b64ToBuf(v);
+    const iv = buf.slice(0,12); const ct = buf.slice(12);
+    const pt = await crypto.subtle.decrypt({name:'AES-GCM',iv}, k, ct);
+    return new TextDecoder().decode(pt) === 'VAULT_OK';
+  }catch{return false;}
+}
+
+// ===== LOCKOUT =====
+// FIX: Simpan lockout di sessionStorage agar tidak bisa di-bypass dengan refresh halaman
+// sessionStorage hilang saat tab ditutup (lebih aman dari localStorage)
+function saveLockoutState(){
+  if(lockedUntil > Date.now()){
+    sessionStorage.setItem('vault_lockout', JSON.stringify({attempts, lockedUntil}));
+  } else {
+    sessionStorage.removeItem('vault_lockout');
+  }
+}
+
+function loadLockoutState(){
+  try{
+    const raw = sessionStorage.getItem('vault_lockout');
+    if(!raw) return;
+    const s = JSON.parse(raw);
+    if(s.lockedUntil > Date.now()){
+      attempts = s.attempts || MAX_ATTEMPTS;
+      lockedUntil = s.lockedUntil;
+    } else {
+      sessionStorage.removeItem('vault_lockout');
+    }
+  }catch{}
+}
+
+function checkLockout(){
+  loadLockoutState();
+  if(lockedUntil > 0 && Date.now() < lockedUntil){ return true; }
+  if(lockedUntil > 0 && Date.now() >= lockedUntil){ lockedUntil = 0; attempts = 0; sessionStorage.removeItem('vault_lockout'); }
+  updateDots();
+  return false;
+}
+
+function updateDots(){
+  for(let i=0;i<5;i++) document.getElementById('d'+i).classList.toggle('used', i<attempts);
+}
+
+function recordFail(){
+  attempts++;
+  updateDots();
+  if(attempts >= MAX_ATTEMPTS){
+    lockedUntil = Date.now() + LOCKOUT_MS;
+    saveLockoutState();
+    startLockoutTimer();
+  }
+}
+
+function resetAttempts(){
+  attempts=0;
+  lockedUntil=0;
+  updateDots();
+}
+
+function startLockoutTimer(){
+  const btn = document.getElementById('unlockBtn');
+  btn.disabled = true;
+  const tick = ()=>{
+    const rem = Math.ceil((lockedUntil - Date.now())/1000);
+    if(rem <= 0){btn.disabled=false;setMsg('','');resetAttempts();return;}
+    setMsg(`Terkunci ${rem}s`, 'warn');
+    setTimeout(tick, 1000);
+  };
+  tick();
+}
+
+function setMsg(txt, type){
+  const el = document.getElementById('lockMsg');
+  el.textContent = txt;
+  el.className = 'lock-msg' + (type?' '+type:'');
+}
+
+// ===== UNLOCK =====
+function isFirstTime(){ return !localStorage.getItem('vault_ver'); }
+
+async function unlock(){
+  if(lockedUntil > Date.now()) return;
+  const pw = document.getElementById('masterPass').value.trim();
+  if(!pw){ setMsg('Masukkan master password','err'); return; }
+
+  const btn = document.getElementById('unlockBtn');
+  const isSetup = isFirstTime();
+  const setLoading = (label) => {
+    btn.disabled = true;
+    btn.classList.add('loading');
+    btn.innerHTML = `<span class="spinner"></span>${label}`;
+  };
+  const clearLoading = (label) => {
+    btn.disabled = false;
+    btn.classList.remove('loading');
+    btn.textContent = label;
+  };
+
+  try{
+    const salt = getSalt();
+    if(isSetup){
+      const conf = document.getElementById('masterConfirm').value;
+      if(!conf){ setMsg('Konfirmasi password dulu','err'); return; }
+      if(pw !== conf){ setMsg('Password tidak cocok','err'); document.getElementById('masterConfirm').value=''; return; }
+      if(pw.length < 12){ setMsg('Master password minimal 12 karakter untuk keamanan optimal','err'); return; }
+      setLoading('Menyiapkan vault…');
+      await setVerifier(pw, salt);
+      _key = await deriveKey(pw, salt);
+      resetAttempts();
+      db = await openDB();
+      await loadItems();
+      showApp();
+      return;
+    }
+    setLoading('Membuka…');
+    const ok = await checkVerifier(pw, salt);
+    if(!ok){
+      clearLoading('Buka Vault');
+      recordFail();
+      const rem = MAX_ATTEMPTS - attempts;
+      setMsg(rem > 0 ? `Password salah — ${rem} percobaan tersisa` : '', 'err');
+      return;
+    }
+    _key = await deriveKey(pw, salt);
+    resetAttempts();
+    db = await openDB();
+    await loadItems();
+    showApp();
+  }catch(e){
+    setMsg('Error: '+e.message,'err');
+    clearLoading(isSetup ? 'Buat Vault' : 'Buka Vault');
+  }
+}
+
+async function loadItems(){
+  const raw = await dbAll();
+  _items = [];
+  const failed = [];
+  for(const row of raw){
+    try{
+      const title = await decrypt(row.title);
+      const username = await decrypt(row.username);
+      // FIX: password disimpan sebagai ciphertext di _items, di-decrypt hanya saat ditampilkan/disalin
+      // Ini mencegah plaintext password tersebar di memori
+      const password = row.password; // tetap ciphertext
+      const notes = row.notes ? await decrypt(row.notes) : '';
+      _items.push({
+        id:row.id, title, username,
+        password, // ciphertext — di-decrypt on-demand
+        notes,
+        color:row.color||0,
+        category:row.category||'other',
+        favorite:row.favorite||false
+      });
+    }catch(e){
+      failed.push(row.id);
+      console.warn('Failed to decrypt id='+row.id, e);
+    }
+  }
+  if(failed.length){
+    showToast(`${failed.length} item gagal didekripsi`, 'err');
+  }
+}
+
+function showApp(){
+  document.getElementById('lockScreen').style.display='none';
+  document.getElementById('app').style.display='flex';
+  document.getElementById('fab').style.display='flex';
+  document.getElementById('masterPass').value='';
+  loadSecretLocks();
+  render();
+  startIdleTimer();
+}
+
+function lockVault(){
+  _key=null; _items=[];_expanded.clear();_revealed.clear();
+  // Bersihkan clipboard saat lock
+  if(_clipboardClearTimer) clearTimeout(_clipboardClearTimer);
+  try{ navigator.clipboard.writeText(''); }catch{}
+  document.getElementById('lockScreen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('fab').style.display='none';
+  document.getElementById('masterPass').value='';
+  document.getElementById('masterConfirm').value='';
+  setMsg('','');
+  // FIX: Reset button state — bisa ter-disabled jika lock terjadi saat loading atau lockout timer
+  const btn = document.getElementById('unlockBtn');
+  btn.disabled = false;
+  btn.classList.remove('loading');
+  btn.textContent = isFirstTime() ? 'Buat Vault' : 'Buka Vault';
+  stopIdleTimer();
+}
+
+// ===== AUTO-LOCK (IDLE + TAB HIDDEN) =====
+function startIdleTimer(){
+  stopIdleTimer();
+  _idleTimer = setTimeout(()=>{
+    if(!_key) return;
+    // Jangan lock kalau modal import sedang terbuka
+    const importPwOpen = document.getElementById('importPwModal').classList.contains('show');
+    const importOpen = document.getElementById('importModal').classList.contains('show');
+    if(importPwOpen || importOpen || _importPending) return;
+    showToast('Vault dikunci otomatis (idle)','warn');
+    lockVault();
+  }, IDLE_LOCK_MS);
+}
+
+function stopIdleTimer(){
+  if(_idleTimer){ clearTimeout(_idleTimer); _idleTimer=null; }
+}
+
+function resetIdleTimer(){
+  if(_key) startIdleTimer(); // hanya reset jika vault terbuka
+}
+
+// ===== FILTER =====
+function setFilter(f){
+  _filter = f;
+  document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+  const chip = document.getElementById('chip-'+f);
+  if(chip) chip.classList.add('active');
+  render();
+}
+
+// ===== SEARCH =====
+function onSearch(){
+  const q = document.getElementById('search').value;
+  document.getElementById('searchClear').classList.toggle('visible', q.length > 0);
+  render();
+}
+
+function clearSearch(){
+  document.getElementById('search').value='';
+  document.getElementById('searchClear').classList.remove('visible');
+  render();
+}
+
+// ===== PASSWORD STRENGTH =====
+function scorePassword(pw){
+  if(!pw) return 0;
+  let score=0;
+  if(pw.length>=8) score++;
+  if(pw.length>=12) score++;
+  if(/[A-Z]/.test(pw)&&/[a-z]/.test(pw)) score++;
+  if(/[0-9]/.test(pw)) score++;
+  if(/[^A-Za-z0-9]/.test(pw)) score++;
+  if(score<=1) return 1;
+  if(score<=2) return 2;
+  if(score<=3) return 3;
+  return 4;
+}
+
+const STRENGTH_LABELS = ['','Lemah','Cukup','Kuat','Sangat Kuat'];
+
+// Strength meter untuk lock screen (hanya tampil saat setup vault baru)
+function updateLockStrength(pw){
+  const isSetup = isFirstTime();
+  const wrap = document.getElementById('lockStrengthWrap');
+  if(!wrap) return;
+  wrap.style.display = isSetup && pw ? 'block' : 'none';
+  if(!isSetup || !pw) return;
+  const score = scorePassword(pw);
+  const cls = 's'+score;
+  for(let i=0;i<4;i++){
+    const seg = document.getElementById('ls'+i);
+    seg.className = 'strength-seg' + (i < score ? ' '+cls : '');
+  }
+  const label = document.getElementById('lockStrengthLabel');
+  label.textContent = STRENGTH_LABELS[score];
+  label.className = cls;
+  // Warn jika password < 8 karakter
+  if(pw.length < 8){
+    label.textContent = `${STRENGTH_LABELS[score]} — minimal 8 karakter`;
+    label.style.color = 'var(--warn)';
+  } else {
+    label.style.color = '';
+  }
+}
+
+function updateStrength(pw){
+  const score = scorePassword(pw);
+  const cls = pw ? 's'+score : '';
+  for(let i=0;i<4;i++){
+    const seg = document.getElementById('ss'+i);
+    seg.className = 'form-strength-seg' + (pw && i < score ? ' '+cls : '');
+  }
+  const label = document.getElementById('strengthLabel');
+  label.textContent = pw ? STRENGTH_LABELS[score] : '';
+  label.className = 'form-strength-label' + (pw ? ' '+cls : '');
+}
+
+// ===== RENDER =====
+function render(){
+  const q = (document.getElementById('search').value||'').toLowerCase();
+  const list = document.getElementById('list');
+
+  // Sort: favorites first, then alpha
+  let filtered = [..._items].sort((a,b)=>{
+    if(a.favorite && !b.favorite) return -1;
+    if(!a.favorite && b.favorite) return 1;
+    return a.title.localeCompare(b.title);
+  });
+
+  // Apply category/fav filter
+  if(_filter === 'fav'){
+    filtered = filtered.filter(i=>i.favorite);
+  } else if(_filter !== 'all'){
+    filtered = filtered.filter(i=>i.category===_filter);
+  }
+
+  // Apply search
+  if(q){
+    filtered = filtered.filter(i=>
+      i.title.toLowerCase().includes(q)||
+      i.username.toLowerCase().includes(q)||
+      (i.notes&&i.notes.toLowerCase().includes(q))
+    );
+  }
+
+  document.getElementById('countBadge').textContent = _items.length;
+
+  if(!filtered.length){
+    list.innerHTML = `<div class="empty-state">
+      <div class="empty-icon">${q||_filter!=='all' ? SVG.searchEmpty : SVG.lockEmpty}</div>
+      <p>${q ? 'Tidak ada hasil untuk "<strong>'+esc(q)+'</strong>"' :
+           _filter==='fav' ? 'Belum ada favorit.<br>Tap ⭐ pada item untuk pin.' :
+           'Tidak ada item di kategori ini.'}</p>
+    </div>`;
+    return;
+  }
+
+  // Group pinned vs rest when showing all
+  const hasFavs = filtered.some(i=>i.favorite);
+  const hasNonFavs = filtered.some(i=>!i.favorite);
+  const showGroups = (_filter==='all'||_filter==='fav') && hasFavs && hasNonFavs && !q;
+
+  let html='';
+
+  if(showGroups){
+    html += `<div class="section-label">★ Favorit</div>`;
+    html += filtered.filter(i=>i.favorite).map((item,idx)=>renderCard(item,idx)).join('');
+    html += `<div class="section-label">Semua</div>`;
+    html += filtered.filter(i=>!i.favorite).map((item,idx)=>renderCard(item,idx)).join('');
+  } else {
+    html = filtered.map((item,idx)=>renderCard(item,idx)).join('');
+  }
+
+  list.innerHTML = html;
+}
+
+function renderCard(item, idx){
+  const letter = item.title.charAt(0).toUpperCase()||'?';
+  const exp = _expanded.has(item.id);
+  const rev = _revealed.has(item.id);
+  const cat = CATEGORIES[item.category]||CATEGORIES.other;
+  const isFav = item.favorite;
+  const isSecretLocked = isItemSecretLocked(item.id);
+
+  // If secret locked, block expand
+  if(isSecretLocked && exp){ _expanded.delete(item.id); _revealed.delete(item.id); }
+
+  let details='';
+  if(exp && !isSecretLocked){
+    const pw = rev ? '(klik 👁 untuk tampilkan)' : '••••••••••';
+    details = `<div class="item-details">
+      <div class="detail-row">
+        <span class="detail-label">Username</span>
+        <span class="detail-value">${esc(item.username)||'—'}</span>
+        <button class="detail-eye" onclick="copyUser(${item.id});event.stopPropagation()" id="copy-btn-${item.id}-user" title="Salin username">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        </button>
+      </div>
+      <div class="detail-row">
+        <span class="detail-label">Password</span>
+        <span class="detail-value${rev?' revealed':''}" id="pw-val-${item.id}">${rev?'(loading…)':'••••••••••'}</span>
+        <button class="detail-eye" onclick="toggleReveal(${item.id});event.stopPropagation()" title="${rev?'Sembunyikan':'Tampilkan'} password">
+          ${rev ? SVG.eyeOff : SVG.eyeOpen}
+        </button>
+      </div>
+      ${item.notes?`<div class="detail-row">
+        <span class="detail-label">Catatan</span>
+        <span class="detail-value">${esc(item.notes)}</span>
+      </div>`:''}
+    </div>
+    <div class="item-actions">
+      <button class="act-btn copy" onclick="copyPass(${item.id});event.stopPropagation()" id="copy-btn-${item.id}-pw">${SVG.copy} Salin PW</button>
+      <button class="act-btn fav${isFav?' active':''}" onclick="toggleFav(${item.id});event.stopPropagation()">${isFav?SVG.star:SVG.starOutline} ${isFav?'Unpin':'Favorit'}</button>
+      <button class="act-btn" onclick="openEdit(${item.id});event.stopPropagation()">${SVG.edit} Edit</button>
+      <button class="act-btn del" onclick="deleteItem(${item.id});event.stopPropagation()">${SVG.trash} Hapus</button>
+      <button class="act-btn" onclick="openSecretLockModal(${item.id});event.stopPropagation()" title="Lock Secret — sembunyikan item selama durasi tertentu" style="flex-basis:100%;justify-content:center;color:var(--accent);border-color:var(--accent-dim)">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Kunci Sementara (Lock Secret)
+      </button>
+    </div>`;
+  } else if(isSecretLocked){
+    // Item sedang terkunci — tampilkan status & timer countdown
+    const lock = _secretLocks.get(item.id);
+    const elapsed = lock ? Math.min(performance.now() - lock.perfStart, Date.now() - lock.lockedAt) : 0;
+    const remMs = lock ? Math.max(0, lock.durationMs - elapsed) : 0;
+    details = `
+    <div class="secret-lock-bar">
+      <div class="secret-lock-info">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Terkunci
+      </div>
+      <span class="secret-lock-timer" id="slt-${item.id}">${fmtCountdown(remMs)}</span>
+    </div>`;
+  }
+
+  return `<div class="item-card${exp?' expanded':''}${isFav?' pinned':''}${isSecretLocked?' secret-locked':''}">
+    <div class="item-header" onclick="toggleExpand(${item.id})" style="user-select:none">
+      <div class="item-avatar c${item.color}">
+        ${esc(letter)}
+        ${isFav?'<span class="fav-dot"></span>':''}
+        ${isSecretLocked?`<span style="position:absolute;bottom:-3px;right:-3px;width:10px;height:10px;background:var(--accent);border-radius:50%;border:1.5px solid var(--card);display:flex;align-items:center;justify-content:center;">
+          <svg width="6" height="6" viewBox="0 0 24 24" fill="white" stroke="none"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke="white" fill="none" stroke-width="3"/></svg>
+        </span>`:''}
+      </div>
+      <div class="item-info">
+        <div class="item-title">
+          ${esc(item.title)}
+          <span class="cat-badge ${cat.cls}">${cat.label}</span>
+          ${isSecretLocked?`<span style="font-size:9px;font-family:var(--mono);color:var(--accent);background:var(--accent-dim);padding:1px 6px;border-radius:10px;flex-shrink:0;">🔒 locked</span>`:''}
+        </div>
+        <div class="item-user">${esc(item.username)||'—'}</div>
+      </div>
+      <span class="item-chevron${exp?' open':''}">${SVG.chevronDown}</span>
+    </div>
+    ${details}
+  </div>`;
+}
+
+function toggleExpand(id){
+  if(isItemSecretLocked(id)){
+    showToast('Item terkunci — tunggu timer habis','warn');
+    return;
+  }
+  if(_expanded.has(id)){
+    _expanded.delete(id);
+    _revealed.delete(id);
+  } else {
+    _expanded.add(id);
+  }
+  render();
+  // If expanded and password was revealed, load it
+  if(_expanded.has(id) && _revealed.has(id)) loadRevealedPw(id);
+}
+
+async function toggleReveal(id){
+  if(_revealed.has(id)){
+    _revealed.delete(id);
+    render();
+    return;
+  }
+  _revealed.add(id);
+  render();
+  await loadRevealedPw(id);
+}
+
+async function loadRevealedPw(id){
+  const item = _items.find(i=>i.id===id);
+  if(!item) return;
+  const el = document.getElementById('pw-val-'+id);
+  if(!el) return;
+  try{
+    const pw = await decrypt(item.password);
+    el.textContent = pw;
+  }catch(e){
+    el.textContent = '⚠ Dekripsi gagal';
+    el.style.color='var(--danger)';
+    showToast('Gagal dekripsi: '+e.message, 'err');
+  }
+}
+
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') }
+
+// ===== COPY =====
+const _copyTimers = {};
+let _clipboardClearTimer = null;
+
+// Bersihkan clipboard otomatis setelah 30 detik
+function scheduleClipboardClear(){
+  if(_clipboardClearTimer) clearTimeout(_clipboardClearTimer);
+  _clipboardClearTimer = setTimeout(async ()=>{
+    try{
+      // Hanya clear jika clipboard masih berisi data sensitif (tidak bisa cek isinya,
+      // jadi kita tulis string kosong untuk memaksa clear)
+      await navigator.clipboard.writeText('');
+    }catch{}
+  }, 30000);
+}
+
+function setCopyFeedback(id, field, label){
+  const btnId = `copy-btn-${id}-${field}`;
+  const btn = document.getElementById(btnId);
+  if(!btn) return;
+  if(_copyTimers[btnId]) clearTimeout(_copyTimers[btnId]);
+  btn.innerHTML = `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg> Disalin`;
+  btn.style.color='var(--green)'; btn.style.borderColor='var(--green)';
+  _copyTimers[btnId] = setTimeout(()=>{
+    btn.innerHTML = `${SVG.copy} ${label}`;
+    btn.style.color=''; btn.style.borderColor='';
+  }, 1500);
+}
+
+async function copyPass(id){
+  const item = _items.find(i=>i.id===id);
+  if(!item) return;
+  try{
+    const pw = await decrypt(item.password);
+    await navigator.clipboard.writeText(pw);
+    scheduleClipboardClear(); // auto-clear clipboard dalam 30 detik
+    setCopyFeedback(id,'pw','Salin PW');
+    showToast('Password disalin — clipboard bersih dalam 30 detik', 'ok');
+  }catch(e){showToast('Gagal copy: '+e.message,'err')}
+}
+
+async function copyUser(id){
+  const item = _items.find(i=>i.id===id);
+  if(!item || !item.username) return;
+  try{
+    await navigator.clipboard.writeText(item.username);
+    setCopyFeedback(id,'user','');
+    showToast('Username disalin', 'ok');
+  }catch{showToast('Gagal copy','err')}
+}
+
+// ===== FAVORITE =====
+async function toggleFav(id){
+  const item = _items.find(i=>i.id===id);
+  if(!item) return;
+  item.favorite = !item.favorite;
+  // Update DB
+  const raw = (await dbAll()).find(r=>r.id===id);
+  if(raw){ raw.favorite = item.favorite; await dbPut(raw); }
+  showToast(item.favorite ? '⭐ Ditambahkan ke favorit' : 'Dihapus dari favorit');
+  render();
+}
+
+// ===== MODAL =====
+function openModal(){
+  editId=null;
+  const title = document.getElementById('sheetTitle');
+  title.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg> Tambah Secret`;
+  ['fTitle','fUser','fPass','fNotes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('fCategory').value='other';
+  document.getElementById('fPass').placeholder='Password akun ini';
+  updateStrength('');
+  showSheet();
+}
+
+function openEdit(id){
+  const item = _items.find(i=>i.id===id);
+  if(!item) return;
+  editId=id;
+  const title = document.getElementById('sheetTitle');
+  title.innerHTML = SVG.editTitle + ' Edit Secret';
+  document.getElementById('fTitle').value=item.title;
+  document.getElementById('fCategory').value=item.category||'other';
+  document.getElementById('fUser').value=item.username;
+  document.getElementById('fPass').value='';
+  document.getElementById('fPass').placeholder='(kosongkan = tidak diubah)';
+  document.getElementById('fNotes').value=item.notes||'';
+  updateStrength('');
+  showSheet();
+}
+
+function showSheet(){
+  document.getElementById('overlay').classList.add('show');
+  document.getElementById('sheet').classList.add('show');
+}
+
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('sheet').classList.remove('show');
+  document.getElementById('fPass').placeholder='Password akun ini';
+  updateStrength('');
+  editId=null;
+}
+
+async function saveItem(){
+  const title = document.getElementById('fTitle').value.trim();
+  const username = document.getElementById('fUser').value.trim();
+  const password = document.getElementById('fPass').value;
+  const notes = document.getElementById('fNotes').value.trim();
+  const category = document.getElementById('fCategory').value;
+
+  if(!title){ showToast('Nama wajib diisi','err'); return; }
+
+  try{
+    if(editId){
+      const existing = _items.find(i=>i.id===editId);
+      const newPass = password ? await encrypt(password) : existing.password;
+      const obj = {id:editId, title:await encrypt(title), username:await encrypt(username), password:newPass, notes:notes?await encrypt(notes):'', color:existing.color, category, favorite:existing.favorite||false};
+      await dbPut(obj);
+      existing.title=title; existing.username=username;
+      if(password) existing.password=newPass;
+      existing.notes=notes; existing.category=category;
+      showToast('Diperbarui','ok');
+    } else {
+      if(!password){ showToast('Password akun wajib diisi','err'); return; }
+      const color = Math.floor(Math.random()*8);
+      const obj = {title:await encrypt(title), username:await encrypt(username), password:await encrypt(password), notes:notes?await encrypt(notes):'', color, category, favorite:false};
+      const id = await dbPut(obj);
+      _items.push({id, title, username, password:obj.password, notes, color, category, favorite:false});
+      showToast('Tersimpan','ok');
+    }
+    closeModal(); render();
+  }catch(e){ showToast('Error: '+e.message,'err'); }
+}
+
+// ===== DELETE =====
+// Custom delete confirmation — menghindari native confirm() yang bisa diblokir/bypass browser
+let _pendingDeleteId = null;
+
+function deleteItem(id){
+  _pendingDeleteId = id;
+  const item = _items.find(i=>i.id===id);
+  const name = item ? item.title : 'item ini';
+  // Tampilkan confirm modal custom
+  document.getElementById('deleteConfirmName').textContent = name;
+  document.getElementById('deleteModal').classList.add('show');
+}
+
+function cancelDelete(){
+  _pendingDeleteId = null;
+  document.getElementById('deleteModal').classList.remove('show');
+}
+
+async function confirmDelete(){
+  const id = _pendingDeleteId;
+  _pendingDeleteId = null;
+  document.getElementById('deleteModal').classList.remove('show');
+  if(!id) return;
+  await dbDelete(id);
+  _items = _items.filter(i=>i.id!==id);
+  _expanded.delete(id);
+  _revealed.delete(id);
+  showToast('Dihapus');
+  render();
+}
+
+// ===== PASSWORD GENERATOR =====
+function genPass(){
+  const chars='abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%^&*';
+  let pw='';
+  const arr = crypto.getRandomValues(new Uint8Array(18));
+  arr.forEach(b=>pw+=chars[b%chars.length]);
+  document.getElementById('fPass').value=pw;
+  document.getElementById('fPass').type='text';
+  updateStrength(pw);
+  showToast('Password dibuat', 'ok');
+}
+
+// ===== TOGGLE EYE =====
+function toggleEye(inputId, btn){
+  const el = document.getElementById(inputId);
+  el.type = el.type==='password' ? 'text' : 'password';
+  btn.innerHTML = el.type==='password' ? SVG.eyeOpen : SVG.eyeOff;
+}
+
+// ===== EXPORT / IMPORT =====
+async function exportData(){
+  try{
+    const raw = await dbAll();
+    // Fix B: sertakan salt ke backup agar import bisa verifikasi kompatibilitas
+    // tanpa salt, import dari device/browser lain atau setelah reset vault akan selalu gagal
+    const saltB64 = localStorage.getItem('vault_salt') || '';
+    const blob = new Blob([JSON.stringify({v:3, salt: saltB64, data: raw})],{type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href=url; a.download='vault_backup_'+Date.now()+'.vault';
+    a.click(); URL.revokeObjectURL(url);
+    showToast('Backup disimpan','ok');
+  }catch(e){showToast('Gagal backup: '+e.message,'err');}
+}
+
+function importTrigger(){
+  // Simpan key SEKARANG sebelum file picker dibuka
+  // File picker bisa trigger visibilitychange → vault lock → _key jadi null
+  _importSessionKey = _key;
+  document.getElementById('importFile').click();
+}
+
+async function importData(e){
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value='';
+  try{
+    const text = await file.text();
+    const json = JSON.parse(text);
+    if(!json.data || !Array.isArray(json.data)) throw new Error('Format tidak valid');
+
+    // ===== VALIDASI SCHEMA PER-ITEM =====
+    const REQUIRED_FIELDS = ['title','username','password'];
+    const invalidItems = [];
+    for(let i=0;i<json.data.length;i++){
+      const row = json.data[i];
+      if(typeof row !== 'object' || row === null){ invalidItems.push(i+1); continue; }
+      const missingField = REQUIRED_FIELDS.find(f=>typeof row[f] !== 'string' || !row[f]);
+      if(missingField){ invalidItems.push(i+1); continue; }
+    }
+    if(invalidItems.length){
+      const sample = invalidItems.slice(0,5).join(', ');
+      const more = invalidItems.length > 5 ? ` (+${invalidItems.length-5} lainnya)` : '';
+      throw new Error(`${invalidItems.length} item tidak valid (baris: ${sample}${more})`);
+    }
+
+    // ===== VERIFIKASI KOMPATIBILITAS BACKUP =====
+    if(json.data.length > 0 && json.salt){
+      const currentSaltB64 = localStorage.getItem('vault_salt') || '';
+      if(json.salt === currentSaltB64){
+        json._importKey = null;
+        json._needReEncrypt = false;
+      } else {
+        _importPending = json;
+        _importPending._pendingVerify = true;
+        document.getElementById('importPwModal').classList.add('show');
+        document.getElementById('importPwInput').value='';
+        document.getElementById('importPwMsg').textContent='';
+        return;
+      }
+    } else {
+      json._importKey = null;
+      json._needReEncrypt = false;
+    }
+
+    // Show confirmation modal
+    _importPending = json;
+    document.getElementById('importCount').textContent = json.data.length;
+    document.getElementById('importModal').classList.add('show');
+  }catch(err){
+    showToast('Import gagal: '+err.message,'err');
+    _importPending = null;
+  }
+}
+
+function cancelImportPw(){
+  document.getElementById('importPwModal').classList.remove('show');
+  _importPending = null;
+  _importSessionKey = null;
+  showToast('Import dibatalkan','warn');
+}
+
+async function confirmImportPw(){
+  const json = _importPending;
+  if(!json) return;
+  const pw = document.getElementById('importPwInput').value;
+  const msgEl = document.getElementById('importPwMsg');
+  if(!pw){ msgEl.textContent='Masukkan master password'; return; }
+  msgEl.textContent='Memverifikasi…';
+  try{
+    const backupSalt = b64ToBuf(json.salt);
+    const importKey = await deriveKey(pw, backupSalt);
+    // Coba dekripsi item pertama
+    const buf = b64ToBuf(json.data[0].title);
+    const iv = buf.slice(0,12); const ct = buf.slice(12);
+    await crypto.subtle.decrypt({name:'AES-GCM', iv}, importKey, ct);
+    // Berhasil — simpan key dan lanjutkan ke modal pilih mode
+    json._importKey = importKey;
+    json._needReEncrypt = true;
+    json._pendingVerify = false;
+    document.getElementById('importPwModal').classList.remove('show');
+    // Tampilkan modal pilih mode import
+    document.getElementById('importCount').textContent = json.data.length;
+    document.getElementById('importModal').classList.add('show');
+  }catch{
+    msgEl.textContent='Password salah atau backup rusak';
+    document.getElementById('importPwInput').style.borderColor='var(--danger)';
+  }
+}
+
+function cancelImport(){
+  _importPending = null;
+  _importSessionKey = null;
+  document.getElementById('importModal').classList.remove('show');
+}
+
+async function doImport(mode){
+  if(!_importPending) return;
+  const json = _importPending;
+  _importPending = null;
+  document.getElementById('importModal').classList.remove('show');
+
+  // Pakai _importSessionKey (disimpan saat klik Import, sebelum file picker)
+  // Ini aman meskipun vault sudah ter-lock di tengah proses
+  const currentKey = _importSessionKey || _key;
+  if(!currentKey){ showToast('Import gagal: vault tidak terbuka','err'); return; }
+
+  try{
+    if(mode === 'replace') await dbClear();
+
+    const srcKey = json._importKey || currentKey;
+    const needReEncrypt = json._needReEncrypt === true;
+
+    for(const row of json.data){
+      let clean;
+      if(needReEncrypt){
+        // Dekripsi pakai key backup, enkripsi ulang pakai key vault ini
+        _key = srcKey;
+        const title    = await decrypt(row.title);
+        const username = await decrypt(row.username);
+        const password = await decrypt(row.password);
+        const notes    = row.notes ? await decrypt(row.notes) : '';
+        _key = currentKey;
+        clean = {
+          title:    await encrypt(title),
+          username: await encrypt(username),
+          password: await encrypt(password),
+          notes:    notes ? await encrypt(notes) : '',
+          color:    typeof row.color === 'number' ? row.color : 0,
+          category: row.category || 'other',
+          favorite: row.favorite === true,
+        };
+      } else {
+        clean = {
+          title:    row.title || '',
+          username: row.username || '',
+          password: row.password || '',
+          notes:    (typeof row.notes === 'string' && row.notes) ? row.notes : '',
+          color:    typeof row.color === 'number' ? row.color : 0,
+          category: row.category || 'other',
+          favorite: row.favorite === true,
+        };
+      }
+      await dbPut(clean);
+    }
+
+    // Restore key agar loadItems bisa jalan (vault mungkin sudah ter-lock)
+    if(!_key) _key = currentKey;
+    await loadItems();
+    _importSessionKey = null; // bersihkan session key
+
+    if(document.getElementById('app').style.display !== 'none'){
+      render();
+    }
+    showToast(`${json.data.length} item diimport (${mode==='merge'?'digabungkan':'diganti'})`, 'ok');
+  }catch(err){
+    _importSessionKey = null;
+    showToast('Import gagal: '+err.message,'err');
+  }
+}
+
+// ===== RESET VAULT =====
+function showResetConfirm(){
+  if(confirm('Reset vault akan menghapus SEMUA data dan master password.\n\nLanjutkan?')){
+    // Hapus salt lama DAN verifier → generate salt baru saat buat vault berikutnya
+    localStorage.removeItem('vault_salt');
+    localStorage.removeItem('vault_ver');
+    // Pre-generate salt baru sekarang agar getSalt() tidak reuse yang lama
+    const newSalt = crypto.getRandomValues(new Uint8Array(16));
+    localStorage.setItem('vault_salt', bufToB64(newSalt));
+    const req = indexedDB.deleteDatabase(DB_NAME);
+    req.onsuccess = ()=>{
+      document.getElementById('confirmWrap').style.display='block';
+      document.getElementById('unlockBtn').textContent='Buat Vault';
+      document.getElementById('lockSub').textContent='Buat master password untuk vault baru';
+      document.getElementById('resetLink').style.display='none';
+      document.getElementById('masterPass').value='';
+      document.getElementById('masterConfirm').value='';
+      attempts=0; lockedUntil=0;
+      setMsg('Vault direset. Buat master password baru.','ok');
+      document.getElementById('unlockBtn').disabled=false;
+    };
+  }
+}
+
+// ===== CHANGE MASTER PASSWORD =====
+function openChangePw(){
+  ['cpOld','cpNew','cpConfirm'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('cpMsg').textContent='';
+  document.getElementById('cpOverlay').classList.add('show');
+  document.getElementById('cpSheet').classList.add('show');
+}
+
+function closeChangePw(){
+  document.getElementById('cpOverlay').classList.remove('show');
+  document.getElementById('cpSheet').classList.remove('show');
+}
+
+async function doChangePw(){
+  const oldPw = document.getElementById('cpOld').value;
+  const newPw = document.getElementById('cpNew').value;
+  const confirmPw = document.getElementById('cpConfirm').value;
+  const msgEl = document.getElementById('cpMsg');
+
+  if(!oldPw||!newPw||!confirmPw){ msgEl.style.color='var(--danger)'; msgEl.textContent='Semua field wajib diisi'; return; }
+  if(newPw !== confirmPw){ msgEl.style.color='var(--danger)'; msgEl.textContent='Password baru tidak cocok'; return; }
+  if(newPw.length < 12){ msgEl.style.color='var(--danger)'; msgEl.textContent='Master password minimal 12 karakter'; return; }
+
+  msgEl.style.color='var(--sub)'; msgEl.textContent='Memverifikasi…';
+
+  const salt = getSalt();
+  const ok = await checkVerifier(oldPw, salt);
+  if(!ok){ msgEl.style.color='var(--danger)'; msgEl.textContent='Master password lama salah'; return; }
+
+  msgEl.textContent='Re-enkripsi data…';
+
+  try{
+    const oldKey = _key;
+    const newKey = await deriveKey(newPw, salt);
+    const raw = await dbAll();
+    await dbClear();
+
+    for(const row of raw){
+      _key = oldKey;
+      const title = await decrypt(row.title);
+      const username = await decrypt(row.username);
+      const password = await decrypt(row.password);
+      const notes = row.notes ? await decrypt(row.notes) : '';
+      _key = newKey;
+      await dbPut({id:row.id, title:await encrypt(title), username:await encrypt(username), password:await encrypt(password), notes:notes?await encrypt(notes):'', color:row.color||0, category:row.category||'other', favorite:row.favorite||false});
+    }
+
+    await setVerifier(newPw, salt);
+    _key = newKey;
+    await loadItems(); render();
+    closeChangePw();
+    showToast('Master password berhasil diganti','ok');
+  }catch(e){
+    msgEl.style.color='var(--danger)'; msgEl.textContent='Error: '+e.message;
+    try{ _key = await deriveKey(oldPw, salt); }catch{}
+  }
+}
+
+// ===== PERSIST SECRET LOCKS =====
+function saveSecretLocks(){
+  const data = [];
+  _secretLocks.forEach((lock, id)=>{
+    data.push({ id, lockedAt: lock.lockedAt, durationMs: lock.durationMs });
+  });
+  localStorage.setItem('vault_secret_locks', JSON.stringify(data));
+}
+
+function loadSecretLocks(){
+  try{
+    const raw = localStorage.getItem('vault_secret_locks');
+    if(!raw) return;
+    const data = JSON.parse(raw);
+    const now = Date.now();
+    for(const entry of data){
+      const elapsed = now - entry.lockedAt; // pakai Date.now() karena performance.now() sudah reset
+      if(elapsed >= entry.durationMs) continue; // sudah expired
+      const remMs = entry.durationMs - elapsed;
+      // Buat ulang lock dengan perfStart disesuaikan
+      _secretLocks.set(entry.id, {
+        lockedAt: entry.lockedAt,
+        perfStart: performance.now() - elapsed, // mundurkan perfStart agar elapsed konsisten
+        durationMs: entry.durationMs,
+      });
+      // Timer otomatis unlock
+      const timerId = setTimeout(()=>{
+        _secretLocks.delete(entry.id);
+        _secretTimers.delete(entry.id);
+        saveSecretLocks();
+        showToast('Lock secret berakhir: '+(_items.find(i=>i.id===entry.id)?.title||'item'), 'ok');
+        render();
+      }, remMs);
+      _secretTimers.set(entry.id, timerId);
+      startSecretCountdown(entry.id);
+    }
+    // Bersihkan yang sudah expired dari storage
+    saveSecretLocks();
+  }catch(e){ localStorage.removeItem('vault_secret_locks'); }
+}
+
+// ===== LOCK SECRET =====
+let _secretLockTarget = null;
+let _selectedDurationMs = 0; // milliseconds
+
+function isItemSecretLocked(id){
+  const lock = _secretLocks.get(id);
+  if(!lock) return false;
+
+  const perfElapsed = performance.now() - lock.perfStart; // tidak bisa dimanipulasi user
+  const timeElapsed = Date.now() - lock.lockedAt;         // bisa dimanipulasi via jam sistem
+
+  // Pakai yang LEBIH KECIL — kalau jam dimajukan, perfElapsed masih kecil → tetap locked
+  const elapsed = Math.min(perfElapsed, timeElapsed);
+
+  if(elapsed >= lock.durationMs){
+    clearTimeout(_secretTimers.get(id));
+    _secretLocks.delete(id);
+    _secretTimers.delete(id);
+    return false;
+  }
+  return true;
+}
+
+function fmtCountdown(ms){
+  if(ms <= 0) return '0:00';
+  const totalSec = Math.ceil(ms / 1000);
+  const d = Math.floor(totalSec / 86400);
+  const h = Math.floor((totalSec % 86400) / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if(d > 0) return `${d}h ${h.toString().padStart(2,'0')}:${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+  if(h > 0) return `${h}j ${m.toString().padStart(2,'0')}:${s.toString().padStart(2,'0')}`;
+  return `${m}:${s.toString().padStart(2,'0')}`;
+}
+
+function getDurInputMs(){
+  const y   = parseInt(document.getElementById('durY').value)||0;
+  const mo  = parseInt(document.getElementById('durMo').value)||0;
+  const w   = parseInt(document.getElementById('durW').value)||0;
+  const d   = parseInt(document.getElementById('durD').value)||0;
+  const h   = parseInt(document.getElementById('durH').value)||0;
+  const min = parseInt(document.getElementById('durMin').value)||0;
+  const s   = parseInt(document.getElementById('durS').value)||0;
+  return ((y*365 + mo*30 + w*7 + d)*86400 + h*3600 + min*60 + s) * 1000;
+}
+
+function fmtDurPreview(ms){
+  if(ms <= 0) return 'Pilih durasi';
+  const totalSec = Math.floor(ms/1000);
+  const y  = Math.floor(totalSec/31536000);
+  const mo = Math.floor((totalSec%31536000)/2592000);
+  const w  = Math.floor((totalSec%2592000)/604800);
+  const d  = Math.floor((totalSec%604800)/86400);
+  const h  = Math.floor((totalSec%86400)/3600);
+  const m  = Math.floor((totalSec%3600)/60);
+  const s  = totalSec%60;
+  const parts=[];
+  if(y)  parts.push(y+'th');
+  if(mo) parts.push(mo+'bln');
+  if(w)  parts.push(w+'mgg');
+  if(d)  parts.push(d+'hr');
+  if(h)  parts.push(h+'j');
+  if(m)  parts.push(m+'mnt');
+  if(s)  parts.push(s+'dtk');
+  return '🔒 Kunci selama ' + parts.join(' ');
+}
+
+function onDurInput(){
+  _selectedDurationMs = getDurInputMs();
+  const preview = document.getElementById('durPreview');
+  preview.textContent = fmtDurPreview(_selectedDurationMs);
+  const confirmBtn = document.getElementById('secretLockConfirmBtn');
+  if(_selectedDurationMs > 0){
+    confirmBtn.style.opacity='1'; confirmBtn.style.pointerEvents='auto';
+  } else {
+    confirmBtn.style.opacity='.4'; confirmBtn.style.pointerEvents='none';
+  }
+}
+
+function applyPreset(y,mo,w,d,h,min,s){
+  document.getElementById('durY').value   = y;
+  document.getElementById('durMo').value  = mo;
+  document.getElementById('durW').value   = w;
+  document.getElementById('durD').value   = d;
+  document.getElementById('durH').value   = h;
+  document.getElementById('durMin').value = min;
+  document.getElementById('durS').value   = s;
+  onDurInput();
+}
+
+function openSecretLockModal(id){
+  _secretLockTarget = id;
+  _selectedDurationMs = 0;
+  const item = _items.find(i=>i.id===id);
+  document.getElementById('secretLockItemName').textContent = item ? item.title : 'item ini';
+  // Reset inputs
+  ['durY','durMo','durW','durD','durH','durMin','durS'].forEach(id=>document.getElementById(id).value=0);
+  document.getElementById('durPreview').textContent = 'Pilih durasi';
+  const confirmBtn = document.getElementById('secretLockConfirmBtn');
+  confirmBtn.style.opacity='.4'; confirmBtn.style.pointerEvents='none';
+  document.getElementById('secretLockModal').classList.add('show');
+}
+
+function closeSecretLockModal(){
+  _secretLockTarget = null;
+  _selectedDurationMs = 0;
+  document.getElementById('secretLockModal').classList.remove('show');
+}
+
+function confirmSecretLock(){
+  if(!_secretLockTarget || !_selectedDurationMs) return;
+  const id = _secretLockTarget;
+  const ms = _selectedDurationMs;
+
+  if(_secretTimers.has(id)) clearTimeout(_secretTimers.get(id));
+
+  _secretLocks.set(id, {
+    lockedAt: Date.now(),       // timestamp absolut (referensi)
+    perfStart: performance.now(), // performance timer (tidak bisa dimanipulasi)
+    durationMs: ms,             // durasi yang harus dilalui
+  });
+  _expanded.delete(id);
+  _revealed.delete(id);
+
+  const timerId = setTimeout(()=>{
+    _secretLocks.delete(id);
+    _secretTimers.delete(id);
+    saveSecretLocks();
+    showToast('Lock secret berakhir: '+(_items.find(i=>i.id===id)?.title||'item'), 'ok');
+    render();
+  }, ms);
+  _secretTimers.set(id, timerId);
+
+  startSecretCountdown(id);
+  saveSecretLocks();
+
+  closeSecretLockModal();
+  render();
+  showToast(fmtDurPreview(ms).replace('🔒 Kunci selama','Dikunci selama'), 'ok');
+}
+
+function startSecretCountdown(id){
+  const tick = ()=>{
+    const lock = _secretLocks.get(id);
+    if(!lock) return;
+    const perfElapsed = performance.now() - lock.perfStart;
+    const timeElapsed = Date.now() - lock.lockedAt;
+    const elapsed = Math.min(perfElapsed, timeElapsed);
+    const rem = lock.durationMs - elapsed;
+    const el = document.getElementById('slt-'+id);
+    if(el) el.textContent = fmtCountdown(rem);
+    if(rem > 0) setTimeout(tick, 1000);
+  };
+  setTimeout(tick, 1000);
+}
+
+function cancelSecretLock(id){
+  if(_secretTimers.has(id)) clearTimeout(_secretTimers.get(id));
+  _secretLocks.delete(id);
+  _secretTimers.delete(id);
+  render();
+  showToast('Lock secret dibatalkan', 'ok');
+}
+
+// ===== TOAST =====
+let _toastTimer=null;
+function showToast(msg, type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;
+  el.className='toast'+(type?' '+type:'');
+  void el.offsetWidth;
+  el.classList.add('show');
+  clearTimeout(_toastTimer);
+  _toastTimer=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// ===== SERVICE WORKER REGISTRATION =====
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+
+// ===== INIT =====
+document.addEventListener('DOMContentLoaded', ()=>{
+  checkLockout();
+  if(lockedUntil > Date.now()) startLockoutTimer();
+
+  if(isFirstTime()){
+    document.getElementById('confirmWrap').style.display='block';
+    document.getElementById('unlockBtn').textContent='Buat Vault';
+    document.getElementById('lockSub').textContent='Buat master password untuk vault baru';
+  } else {
+    document.getElementById('resetLink').style.display='flex';
+  }
+
+  document.getElementById('masterPass').addEventListener('keydown', e=>{
+    if(e.key==='Enter'){
+      if(isFirstTime()) document.getElementById('masterConfirm').focus();
+      else unlock();
+    }
+  });
+  document.getElementById('masterConfirm').addEventListener('keydown', e=>{ if(e.key==='Enter') unlock(); });
+  document.getElementById('fTitle').addEventListener('keydown', e=>{ if(e.key==='Enter') document.getElementById('fUser').focus(); });
+
+  // ===== ESCAPE KEY: tutup modal/sheet yang sedang aktif =====
+  document.addEventListener('keydown', e=>{
+    if(e.key !== 'Escape') return;
+    // Prioritas: delete modal > import modal > sheet/overlay > changepw sheet
+    if(document.getElementById('deleteModal').classList.contains('show')){
+      cancelDelete(); return;
+    }
+    if(document.getElementById('importPwModal').classList.contains('show')){
+      cancelImportPw(); return;
+    }
+    if(document.getElementById('importModal').classList.contains('show')){
+      cancelImport(); return;
+    }
+    if(document.getElementById('sheet').classList.contains('show')){
+      closeModal(); return;
+    }
+    if(document.getElementById('cpSheet').classList.contains('show')){
+      closeChangePw(); return;
+    }
+  });
+
+  // ===== AUTO-LOCK: reset idle timer on user activity =====
+  ['mousemove','keydown','touchstart','click','scroll'].forEach(evt=>{
+    document.addEventListener(evt, resetIdleTimer, {passive:true});
+  });
+
+  // ===== AUTO-LOCK: lock vault jika tab tidak aktif (hidden) =====
+  document.addEventListener('visibilitychange', ()=>{
+    if(document.hidden && _key){
+      // Jangan lock jika ada modal import yang terbuka atau data import pending
+      const importPwOpen = document.getElementById('importPwModal').classList.contains('show');
+      const importOpen = document.getElementById('importModal').classList.contains('show');
+      if(importPwOpen || importOpen || _importPending) return;
+      showToast('Vault dikunci (tab tidak aktif)','warn');
+      setTimeout(()=>{ if(_key) lockVault(); }, 300);
+    } else if(!document.hidden && _key){
+      resetIdleTimer();
+    }
+  });
+});
+</script>
+</body>
+</html>
